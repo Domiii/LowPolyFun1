@@ -13,16 +13,16 @@ Properties {
  
 SubShader {
 // TODO: https://docs.unity3d.com/Manual/SL-VertexFragmentShaderExamples.html
-	Pass {
-		CGPROGRAM
-
-		#pragma target 4.0
-		#pragma geometry MyGeometryProgram
-
-		#include "FlatShader.cginc"
-
-		ENDCG
-	}
+//	Pass {
+//		CGPROGRAM
+//
+//		#pragma target 4.0
+//		#pragma geometry FlatGeom
+//
+//		#include "FlatShader.cginc"
+//
+//		ENDCG
+//	}
     Pass {
         Material {
             Shininess [_Shininess]

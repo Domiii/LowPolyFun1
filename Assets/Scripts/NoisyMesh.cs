@@ -7,7 +7,6 @@ public class NoisyMesh : MonoBehaviour
 {
 	Biome[] biomes;
 	public float speed = 2;
-	public float scale = .1f;
 	public bool dontUpdate;
 
 	/// <summary>
@@ -29,7 +28,7 @@ public class NoisyMesh : MonoBehaviour
 
 	MeshFilter meshFilter;
 	Mesh originalMesh;
-	Perlin perlin;
+	PerlinNoise noise;
 	Vector3[] baseVertices;
 	Vector3[] baseNormals;
 
@@ -58,7 +57,9 @@ public class NoisyMesh : MonoBehaviour
 		seedY = Random.Range (1.0f, 2) * 47940;
 		seedZ = Random.Range (1.0f, 2) * 98593;
 
-		perlin = new Perlin ();
+		noise = new PerlinNoise() { 
+			frequency = frequency 
+		};
 
 		//time = Time.time;
 		time = 0;
@@ -98,19 +99,19 @@ public class NoisyMesh : MonoBehaviour
 		}
 
 		UpdateBiomeData ();
-		Deform3 ();
+		Deform ();
 
 		if (isMoving) {
 			time += Time.deltaTime;
 		}
 	}
 
-	float min = 100, max = -100;
+	float min, max;
 
 	/// <summary>
 	/// Extend mesh along normal
 	/// </summary>
-	void Deform3 ()
+	void Deform ()
 	{
 		var mesh = meshFilter.sharedMesh;
 
@@ -122,24 +123,21 @@ public class NoisyMesh : MonoBehaviour
 		var offsetY = speed * time + seedY;
 		var offsetZ = speed * time + seedZ;
 
+		// compute min and max height
+		float min = 100, max = -100;
 		for (var i = 0; i < vs.Length; ++i) {
 			var u = baseVertices [i];
 			var inX = u.x;
 			var inY = u.y;
 			var inZ = u.z;
 
-			float h = 0;
-			var gain = 1.0f;
-			for (var o = 0; o < octaves; o++) {
-				h += perlin.Noise (offsetX + inX * gain / frequency, offsetY + inY * gain / frequency, offsetZ + inZ * gain / frequency) / gain;
-				gain *= 2.0f;
-			}
+			float h = noise.SampleNoise(inX, inY, inZ, offsetX, offsetY, offsetZ);
 
-			// re-scale, so delta will always be between 0 and 1
 			min = Mathf.Min (min, h);
 			max = Mathf.Max (max, h);
 		}
 
+		// compute actual height
 		for (var i = 0; i < vs.Length; ++i) {
 			var u = baseVertices [i];
 			var v = vs [i];
@@ -148,25 +146,10 @@ public class NoisyMesh : MonoBehaviour
 			var inY = u.y;
 			var inZ = u.z;
 
-			float h = 0;
-			var gain = 1.0f;
-			for (var o = 0; o < octaves; o++) {
-				h += perlin.Noise (offsetX + inX * gain / frequency, offsetY + inY * gain / frequency, offsetZ + inZ * gain / frequency) / gain;
-				gain *= 2.0f;
-			}
+			float h = noise.SampleNoise(inX, inY, inZ, offsetX, offsetY, offsetZ);
 
 			// re-scale, so delta will always be between 0 and 1
 			h = (h - min) / (max - min);
-
-
-//			if (h < 0.8f) {
-//				//h = h-.1f;
-//				h = 1f;
-//			} else if (h < 0.4f) {
-//				h = 0;
-//			} else {
-//				h = -1f;
-//			}
 
 
 			int bi = biomes.Length - 1;
@@ -196,105 +179,9 @@ public class NoisyMesh : MonoBehaviour
 		mesh.vertices = vs;
 		mesh.colors = colors;
 
-		mesh.RecalculateNormals ();
+		//mesh.RecalculateNormals ();
+		NormalSolver.RecalculateNormals(mesh, 0);
 		mesh.RecalculateTangents ();
 		mesh.RecalculateBounds ();
 	}
-	#region Old Deform
-	void Deform2 ()
-	{
-		var mesh = meshFilter.mesh;
-		//var vs = mesh.vertices;
-
-		if (baseVertices == null) {
-			baseVertices = mesh.vertices;
-		}
-
-		var vs = new Vector3[baseVertices.Length];
-		//var vs = mesh.vertices;
-
-
-		var noiseDx = time * speed + seedX;
-		var noiseDy = time * speed + seedY;
-		var noiseDz = time * speed + seedZ;
-
-
-		for (var i = 0; i < vs.Length; ++i) {
-			var v = baseVertices [i];
-
-			// convert to spherical coordinates
-			var r = v.magnitude;
-			var theta = Mathf.Acos (v.z / r);
-			//var phi = Mathf.Atan (v.y / (v.x + .1f));
-
-			var inX = r;
-			var inY = theta;
-			var inZ = Mathf.PI;
-
-			var dx = perlin.Noise (inX + noiseDx, inY + noiseDx, inZ + noiseDx);
-			var dy = perlin.Noise (inX + noiseDy, inY + noiseDy, inZ + noiseDy);
-			var dz = perlin.Noise (inX + noiseDz, inY + noiseDz, inZ + noiseDz);
-
-			v.x += dx * scale;
-			v.y += dy * scale;
-			v.z += dz * scale;
-			vs [i] = v;
-		}
-
-		mesh.vertices = vs;
-
-		mesh.RecalculateNormals ();
-		mesh.RecalculateTangents ();
-		mesh.RecalculateBounds ();
-	}
-
-
-	/// <summary>
-	/// The overall direction obviously is following the opposite of the positive x,y,z direction.
-	/// There is some odd correlation and regularity to this method: The same pattern repeats all the time.
-	/// For speed = 1, the pattern can be observed to repeat for every multiple of 1.
-	/// For speed = .6, the pattern can be observed to repeat for every multiple of 5.
-	/// For speed = .8, the pattern can be observed to repeat for every multiple of 4.
-	/// </summary>
-	void Deform1 ()
-	{
-		var mesh = meshFilter.mesh;
-		//var vs = mesh.vertices;
-
-		if (baseVertices == null) {
-			baseVertices = mesh.vertices;
-		}
-
-		//var vs = new Vector3[baseVertices.Length];
-		var vs = mesh.vertices;
-
-		var noiseDx = time * speed + seedX;
-		var noiseDy = time * speed + seedY;
-		var noiseDz = time * speed + seedZ;
-
-
-		for (var i = 0; i < vs.Length; ++i) {
-			var v = baseVertices [i];
-
-			var inX = v.x;
-			var inY = v.y;
-			var inZ = v.z;
-
-			var dx = perlin.Noise (inX + noiseDx, inY + noiseDx, inZ + noiseDx);
-			var dy = perlin.Noise (inX + noiseDy, inY + noiseDy, inZ + noiseDy);
-			var dz = perlin.Noise (inX + noiseDz, inY + noiseDz, inZ + noiseDz);
-
-			v.x += dx * scale;
-			v.y += dy * scale;
-			v.z += dz * scale;
-			vs [i] = v;
-		}
-
-		mesh.vertices = vs;
-
-		mesh.RecalculateNormals ();
-		mesh.RecalculateTangents ();
-		mesh.RecalculateBounds ();
-	}
-	#endregion
 }

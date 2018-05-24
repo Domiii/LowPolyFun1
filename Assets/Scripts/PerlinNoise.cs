@@ -13,6 +13,8 @@ public class PerlinNoise
 	[HideInInspector]
 	public float height;
 
+	Perlin perlin = new Perlin();
+
 	float ComputeHeight ()
 	{
 		return octaveScales.Max () * scale * 2;
@@ -44,11 +46,33 @@ public class PerlinNoise
 		}
 
 		// re-scale, so delta will (mostly) be between 0 and 1
-//		val = (val - min) / (max-min);
+		//		val = (val - min) / (max-min);
 		val = val / maxScale;
 
-//		min = Mathf.Min (min, val);
-//		max = Mathf.Max (max, val);
+		//		min = Mathf.Min (min, val);
+		//		max = Mathf.Max (max, val);
+
+		return val * scale;
+	}
+
+	public float SampleNoise (float x, float y, float z, float x0 = 0, float y0 = 0, float z0 = 0)
+	{
+		val = 0;
+		var maxScale = 0.0f;
+		var gain = 1.0f;
+		for (var o = 0; o < octaveScales.Length; o++) {
+			var s = octaveScales [o] / gain;
+			val += s * Mathf.Clamp01 (perlin.Noise (x0 + x * gain * frequency, y0 + y * gain * frequency, z0 + z * gain * frequency));
+			maxScale += s;
+			gain *= 2.0f;
+		}
+
+		// re-scale, so delta will (mostly) be between 0 and 1
+		//		val = (val - min) / (max-min);
+		val = val / maxScale;
+
+		//		min = Mathf.Min (min, val);
+		//		max = Mathf.Max (max, val);
 
 		return val * scale;
 	}
